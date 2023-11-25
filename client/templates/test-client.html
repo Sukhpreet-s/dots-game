@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+    <link rel="stylesheet" href="main.css">
+    <style>
+        
+    </style>
+</head>
+
+<body>
+    <main id="main">
+        <div class="flex flex-col w-60 mx-auto mt-4" :class="{ hidden: isStart }">
+            <h1 class="text-center text-4xl">Pick a Name</h1>
+            <input class="text-black p-1 mb-2" v-model="playerName" type="text" placeholder="Enter here..."/>
+            <!-- <input class="text-black p-1 mb-2" v-model="roomName" type="text" placeholder="Enter code here"/> -->
+            <div class="flex flex-row justify-between mb-2">
+                <button class="bg-slate-300 text-black p-1" :disabled="isRoomCreated" @click="createRoomHandler">Create room</button>
+                <button class="bg-slate-300 text-black p-1" :disabled="isRoomCreated" @click="joinRoomHandler">Join room</button>
+            </div>
+            <button class="bg-slate-300 text-black p-1" :class="{ hidden: !isRoomCreated }" @click="startGameHandler">Start Game</button>
+        </div>
+        <ul>
+            <li 
+                v-for="(player, index) in playersDisplayList" :key="index" 
+                :class="{ 
+                    'text-green-500': index==currentTurn&&isStart,
+                    'text-2xl': index===winnerIndex
+                }"
+            >
+                [[player]]
+            </li>
+        </ul>
+
+        <div class="mt-10 mx-10 container" :class="{ hidden: !isStart }">
+            <div v-for="i in numOfDots" class="dot" v-bind:style="getPosition(i-1)"
+                v-on:click="(event) => connectDotHandler(event, i-1)"></div>
+            <div v-for="i in numOfHorizontalLines" class="line horizontal-line"
+                v-bind:style="getHorizontalLinePosition(i-1)" :ref="`horizontalLine${i-1}`"></div>
+            <div v-for="i in numOfVerticalLines" class="line vertical-line" v-bind:style="getVerticalLinePosition(i-1)"
+                :ref="`verticalLine${i-1}`">
+            </div>
+            <div 
+                v-for="i in numOfBlocks" 
+                class="closed-block" 
+                :style="getBlockPosition(i-1)"
+                :ref="createBlockRef(i-1)"
+            >
+            </div>
+        </div>
+
+        <!-- <div class="endgame" v-if="winner != null">
+            Winner: [[winner.player_name]] by [[winner.points]] points
+        </div> -->
+    </main>
+
+
+
+    <script src="https://cdn.socket.io/4.4.1/socket.io.min.js"
+        integrity="sha384-fKnu0iswBIqkjxrhQCTZ7qlLHOFEgNkRmK2vaO/LbTZSXdJfAu6ewRBdwHPhBo/H"
+        crossorigin="anonymous"></script>
+    <script type="text/javascript" charset="utf-8">
+
+        let app = new Vue({
+            el: '#main',
+            delimiters: ['[[', ']]'],
+            data: {
+                rowSize: 3,
+                colSize: 3,
+                previousActiveDot: null,
+
+                roomName: "testroom",
+                playerName: "",
+
+                // to hide/show ui components based on game status.
+                isStart: false,
+                isRoomCreated: false,
+
+                players: [],
+                currentTurn: 0,
+
+                endgame: false,
+                winner: null,
+                winnerIndex: null,
+                playersPoints: null,
+
+                ws: null,
+            },
+
+            created() {
+                this.getRandomName();
+
+                // Before rendering, establish ws connection and necessray event listeners.
+                this.ws = io('http://localhost:5000')
+                this.ws.on('connect', () => "Connection created successfully!")
+                this.ws.on('join-room', (playersList) => {
+                    this.players = playersList;
+                })
+                this.ws.on('play-turn', ({first_dot, second_dot, next_player_turn}) => {
+
+                    if(first_dot != undefined && second_dot != undefined) {
+                        // first_dot = first_dot+1
+                        // second_dot = second_dot+1
+                        console.log("first_dot: ", first_dot)
+                        console.log("second_dot: ", second_dot)
+
+                        const [firstDot, secondDot] = this.orderDots(first_dot, second_dot)
+                        this.connectDots(firstDot, secondDot)
+                        this.previousActiveDot = null
+                    }
+
+                    if(next_player_turn == true) {
+                        if(this.currentTurn === this.players.length-1) {
+                            this.currentTurn = 0;
+                        } else {
+                            this.currentTurn += 1;
+                        }
+                    }
+                })
+                this.ws.on('close-block', ({blocks_index_to_close, color}) => {
+                    console.log("on close block: ", blocks_index_to_close)
+                    if ((blocks_index_to_close != undefined) && blocks_index_to_close.length>0) {
+                        for (i of blocks_index_to_close) {
+                            this.$refs[`block${i}`][0].style.backgroundColor = color
+                        }
+                    }
+                    
+                })
+                this.ws.on('start-game', ()=> {this.isStart=true})
+
+                this.ws.on('end-game', ({winner, players_points}) => {
+                    
+                    this.winner = winner;
+                    this.playersPoints = players_points
+                    this.endgame = true;
+                    this.winnerIndex = this.players.findIndex(player => player===this.winner.player_name)                    
+                    // console.log('Winner: ', winner)
+                })
+            },
+
+            mounted() {
+            },
+
+            computed: {
+                numOfDots() {
+                    return this.rowSize * this.colSize;
+                },
+                numOfHorizontalLines() {
+                    return (this.colSize - 1) * this.rowSize;
+                },
+                numOfVerticalLines() {
+                    return (this.rowSize - 1) * this.colSize;
+                },
+                numOfBlocks() {
+                    return (this.colSize*this.rowSize) - (this.colSize + this.rowSize - 1);
+                },
+                // Common data that is sent in almost all the ws events.
+                baseWSData() {
+                    return {
+                        'room_name': this.roomName, 
+                        'player_name': this.playerName 
+                    }
+                },
+                playersDisplayList() {
+                    let displayList = this.players.map(player => {
+                        if (player === this.playerName) {
+                            return `${player} (you)`;
+                        } else {
+                            return player;
+                        }
+                    });
+
+                    if(this.endgame) {
+                        
+                        displayList = displayList.map((player, index) => {
+                            player += ` (${this.playersPoints[index]} points)`
+
+                            if (index === this.winnerIndex) {
+                                player += ` (Winner)`
+                            }
+
+                            return player;
+                        })
+                    }
+
+                    return displayList
+                }
+            },
+
+            methods: {
+                /* Event handlers*/
+                createRoomHandler() {
+                    // Validate room name and player name, if invalid -> notify with message
+                    // if(this.roomName==undefined || 
+                    //         this.roomName.length==0) {
+                    //     alert("Invalid room name")
+                    //     return;
+                    // } 
+                    if(this.playerName==undefined || 
+                            this.playerName.length==0) {
+                        alert("Invalid player name")
+                        return;
+                    } 
+
+                    // Get random room name from API.
+
+
+                    this.isRoomCreated = true;
+                    this.ws.emit('create-room', {'room_name': this.roomName, 'player_name': this.playerName});
+
+                    this.players.push(this.playerName)
+                },
+                joinRoomHandler() {
+                    this.ws.emit('join-room', {'room_name': this.roomName, 'player_name': this.playerName})
+                },
+                startGameHandler() {
+
+                    // let all the other clients know what game is being started
+                    // console.log("base data", this.baseWSData)
+                    this.ws.emit('start-game', this.baseWSData);
+
+                    // this.isStart = true;
+                },
+
+                /* methods*/
+
+                getPosition(index) {
+                    const x = index % this.colSize;
+                    const y = Math.floor(index / this.colSize);
+
+                    return {
+                        top: y * 100 + "px",
+                        left: x * 100 + "px"
+                    }
+                },
+                getHorizontalLinePosition(index) {
+                    const x = index % (this.colSize - 1);
+                    const y = Math.floor(index / (this.colSize - 1));
+                    // console.log(y, index)
+
+                    return {
+                        top: y * 100 + "px",
+                        left: x * 100 + "px"
+                    }
+                },
+                getVerticalLinePosition(index) {
+                    const x = index % this.colSize;
+                    const y = Math.floor(index / this.colSize);
+
+                    return {
+                        top: y * 100 + "px",
+                        left: x * 100 + "px"
+                    }
+                },
+                getBlockPosition(index) {
+                    const x = index % (this.colSize-1)
+                    const y = Math.floor(index / (this.colSize-1))
+
+                    return {
+                        top: y * 100 + "px",
+                        left: x * 100 + "px"
+                    }
+
+                },
+                createBlockRef(index) {
+                    return `block${index + Math.floor(index / (this.colSize-1))}`;
+                },
+                connectDotHandler(event, i) {
+                    // console.log(event.target, i);
+                    console.log("previous dot:", this.previousActiveDot)
+                    console.log("current dot: ", i)
+
+                    // Restrict player turn.
+                    if (this.currentTurn != this.players.indexOf(this.playerName)) {
+                        return;
+                    }
+
+                    if (this.previousActiveDot === null) {
+                        this.previousActiveDot = i;
+                        // console.log(this.previousActiveDot)
+                    } else {
+                        // Connect the dots and remove previous entry
+
+                        const [firstDot, secondDot] = this.orderDots(i, this.previousActiveDot);
+
+                        // Tell backend to connect these dots.
+                        this.ws.emit('play-turn', {
+                            "room_name": this.roomName, 
+                            "player_name": this.playerName, 
+                            "first_dot": firstDot, 
+                            "second_dot": secondDot
+                        })
+
+                        // this.connectDots(firstDot, secondDot)
+
+                        // this.previousActiveDot = null;
+                        // console.log(this.previousActiveDot)
+                    }
+
+                },
+                connectDots(firstDot, secondDot) {
+                    // figure out whether horizontal line or vertical line
+                    if (firstDot + 1 == secondDot) {
+                        // Horizontal
+                        this.$refs[`horizontalLine${this.calHorizontalLineRefNum(firstDot)}`][0].style.display = "block";
+                    } else if (firstDot + this.colSize == secondDot) {
+                        this.$refs[`verticalLine${firstDot}`][0].style.display = "block";
+                    } else {
+                        return; // Do not create line if invalid dots positions.
+                    }
+                },
+                orderDots(dot1, dot2) {
+                    if (dot1 > dot2) return [dot2, dot1];
+                    else return [dot1, dot2];
+                },
+
+                // Calculates the index for dot's corresponding horizontal line.
+                calHorizontalLineRefNum(dotNum) {
+                    const rowNumber = Math.floor(dotNum/this.colSize);
+                    return dotNum - rowNumber;
+                },
+                
+                async getRandomName() {
+                    const proxyurl = '	https://cors-anywhere.herokuapp.com/http://names.drycodes.com/1?nameOptions=funnyWords&separator=space'
+                    const url = 'http://names.drycodes.com/1?nameOptions=funnyWords&separator=space';
+                    const res = (await (await fetch(proxyurl)).json())[0];
+                    console.log('Response: ', res)
+                        
+                    
+                }
+            }
+
+
+        })
+
+
+
+    </script>
+</body>
+
+</html>
