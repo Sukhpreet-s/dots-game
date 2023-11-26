@@ -8,7 +8,7 @@
     <title>Document</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
-    <link rel="stylesheet" href="main.css">
+    <link rel="stylesheet" href="{{url_for('static', filename='main.css')}}">
     <style>
         
     </style>
@@ -94,7 +94,7 @@
             },
 
             created() {
-                this.getRandomName();
+                // this.getRandomName();
 
                 // Before rendering, establish ws connection and necessray event listeners.
                 this.ws = io('http://localhost:5000')
@@ -326,14 +326,14 @@
                     return dotNum - rowNumber;
                 },
                 
-                async getRandomName() {
-                    const proxyurl = '	https://cors-anywhere.herokuapp.com/http://names.drycodes.com/1?nameOptions=funnyWords&separator=space'
-                    const url = 'http://names.drycodes.com/1?nameOptions=funnyWords&separator=space';
-                    const res = (await (await fetch(proxyurl)).json())[0];
-                    console.log('Response: ', res)
+                // async getRandomName() {
+                //     const proxyurl = '	https://cors-anywhere.herokuapp.com/http://names.drycodes.com/1?nameOptions=funnyWords&separator=space'
+                //     const url = 'http://names.drycodes.com/1?nameOptions=funnyWords&separator=space';
+                //     const res = (await (await fetch(proxyurl)).json())[0];
+                //     console.log('Response: ', res)
                         
                     
-                }
+                // }
             }
 
 
