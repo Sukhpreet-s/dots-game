@@ -24,15 +24,20 @@ class Room:
 
 	def get_winner(self):
 		# Player with max points is the winner.
-		current_max_point_player_name = ''
+		# DS is a list because multiple players can have the same highest score for draw
+		current_max_point_player_name = []
 		current_max_points = 0
 
 		for player_name in self.players:
 			if self.players[player_name] > current_max_points:
-				current_max_point_player_name = player_name
+				# Reset the winner player name list 
+				current_max_point_player_name = []
+				current_max_point_player_name.append(player_name)
 				current_max_points = self.players[player_name]
+			elif self.players[player_name] == current_max_points:
+				current_max_point_player_name.append(player_name)
 
 		return { 
 			'player_name': current_max_point_player_name,
-			'points': self.players[current_max_point_player_name] 
+			'points': current_max_points 
 		}

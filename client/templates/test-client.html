@@ -31,7 +31,7 @@
                 v-for="(player, index) in playersDisplayList" :key="index" 
                 :class="{ 
                     'text-green-500': index==currentTurn&&isStart,
-                    'text-2xl': index===winnerIndex
+                    'text-2xl': winnerIndex.includes(index)
                 }"
             >
                 [[player]]
@@ -87,7 +87,7 @@
 
                 endgame: false,
                 winner: null,
-                winnerIndex: null,
+                winnerIndex: [],
                 playersPoints: null,
 
                 ws: null,
@@ -136,11 +136,12 @@
 
                 this.ws.on('end-game', ({winner, players_points}) => {
                     
-                    this.winner = winner;
+                    // console.log('Winner Winner Chicken Dinner: ', winner)
+                    // console.log('List of players: ', this.players)
+
                     this.playersPoints = players_points
                     this.endgame = true;
-                    this.winnerIndex = this.players.findIndex(player => player===this.winner.player_name)                    
-                    // console.log('Winner: ', winner)
+                    this.winnerIndex = winner.player_name.map(winner_name => this.players.indexOf(winner_name));
                 })
             },
 
@@ -181,7 +182,9 @@
                         displayList = displayList.map((player, index) => {
                             player += ` (${this.playersPoints[index]} points)`
 
-                            if (index === this.winnerIndex) {
+                            if (this.winnerIndex.includes(index) && this.winnerIndex.length>1) {
+                                player += ` (Draw Winner)`
+                            } else if (this.winnerIndex.includes(index) && this.winnerIndex.length==1) {
                                 player += ` (Winner)`
                             }
 
