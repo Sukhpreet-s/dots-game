@@ -97,7 +97,7 @@
                 // this.getRandomName();
 
                 // Before rendering, establish ws connection and necessray event listeners.
-                this.ws = io('http://localhost:5000')
+                this.ws = io('{{server_url}}')
                 this.ws.on('connect', () => "Connection created successfully!")
                 this.ws.on('join-room', (playersList) => {
                     this.players = playersList;
